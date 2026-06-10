@@ -6,7 +6,7 @@ import (
 	"ollama-proxy/internal/domain"
 )
 
-// ========== Anthropic Request DTO ==========
+// ========== Anthropic 请求 DTO ==========
 
 type AnthropicMetadata struct {
 	UserID string `json:"user_id,omitempty"`
@@ -14,7 +14,7 @@ type AnthropicMetadata struct {
 
 type AnthropicMessage struct {
 	Role    string      `json:"role"`
-	Content interface{} `json:"content"` // string or []ContentBlock
+	Content interface{} `json:"content"` // 字符串或 []ContentBlock
 }
 
 type AnthropicTool struct {
@@ -29,14 +29,14 @@ type AnthropicToolChoice struct {
 }
 
 type AnthropicThinking struct {
-	Type         string `json:"type"` // "enabled" or "disabled"
+	Type         string `json:"type"` // "enabled" 或 "disabled"
 	BudgetTokens int    `json:"budget_tokens,omitempty"`
 }
 
 type AnthropicRequest struct {
 	Model         string               `json:"model"`
 	Messages      []AnthropicMessage   `json:"messages"`
-	System        interface{}          `json:"system,omitempty"` // string or []ContentBlock
+	System        interface{}          `json:"system,omitempty"` // 字符串或 []ContentBlock
 	MaxTokens     int                  `json:"max_tokens"`
 	Temperature   *float64             `json:"temperature,omitempty"`
 	TopP          *float64             `json:"top_p,omitempty"`
@@ -49,12 +49,11 @@ type AnthropicRequest struct {
 	Thinking      *AnthropicThinking   `json:"thinking,omitempty"`
 }
 
-// ========== Anthropic Response DTO ==========
+// ========== Anthropic 响应 DTO ==========
 
-// AnthropicContentBlock is a generic response content block; concrete
-// typed blocks (AnthropicTextBlock, AnthropicToolUseBlock,
-// AnthropicThinkingBlock) are used when building responses so required
-// fields are always serialized.
+// AnthropicContentBlock 是通用的响应内容块；构建响应时使用具体类型块
+// （AnthropicTextBlock、AnthropicToolUseBlock、AnthropicThinkingBlock），
+// 以确保必填字段始终被序列化。
 type AnthropicContentBlock struct {
 	Type  string          `json:"type"`
 	Text  string          `json:"text,omitempty"`
@@ -83,7 +82,7 @@ type AnthropicCountTokensResponse struct {
 	InputTokens int `json:"input_tokens"`
 }
 
-// ========== Anthropic SSE Event Types ==========
+// ========== Anthropic SSE 事件类型 ==========
 
 type AnthropicPing struct {
 	Type string `json:"type"`
@@ -180,11 +179,10 @@ type AnthropicErrorResp struct {
 	Error AnthropicErr `json:"error"`
 }
 
-// ========== Conversion Functions ==========
+// ========== 转换函数 ==========
 
-// AnthropicRequestToDomain converts an Anthropic request to a domain ChatRequest.
-// A single Anthropic message may expand into multiple domain messages, because
-// tool_result blocks map to separate "tool" role messages.
+// AnthropicRequestToDomain 将 Anthropic 请求转换为领域 ChatRequest。
+// 单个 Anthropic 消息可能扩展为多条领域消息，因为 tool_result 块映射到独立的 "tool" 角色消息。
 func AnthropicRequestToDomain(apiReq AnthropicRequest) domain.ChatRequest {
 	messages := make([]domain.Message, 0, len(apiReq.Messages)+1)
 
@@ -216,8 +214,8 @@ func AnthropicRequestToDomain(apiReq AnthropicRequest) domain.ChatRequest {
 		req.Think = &think
 	}
 
-	// tool_choice "none" disables tools; Ollama cannot force a specific
-	// tool, so other choices pass tools through as-is.
+	// tool_choice "none" 禁用工具；Ollama 无法强制使用特定工具，
+	// 因此其他选择按原样传递工具。
 	if apiReq.ToolChoice != nil && apiReq.ToolChoice.Type == "none" {
 		return req
 	}
@@ -231,9 +229,9 @@ func AnthropicRequestToDomain(apiReq AnthropicRequest) domain.ChatRequest {
 	return req
 }
 
-// anthropicMessageToDomain expands one Anthropic message into domain messages.
+// anthropicMessageToDomain 将一条 Anthropic 消息展开为领域消息。
 func anthropicMessageToDomain(msg AnthropicMessage) []domain.Message {
-	// Plain string content.
+	// 纯字符串内容。
 	if text, ok := msg.Content.(string); ok {
 		return []domain.Message{{Role: msg.Role, Content: text}}
 	}
@@ -275,8 +273,7 @@ func anthropicMessageToDomain(msg AnthropicMessage) []domain.Message {
 			if src, ok := block["source"].(map[string]interface{}); ok {
 				switch src["type"] {
 				case "url":
-					// Kept as a URL; the handler downloads it before
-					// the request reaches Ollama.
+					// 保留为 URL；处理器会在请求到达 Ollama 之前下载它。
 					if url, ok := src["url"].(string); ok && IsRemoteURL(url) {
 						current.Images = append(current.Images, url)
 						hasCurrent = true
@@ -304,7 +301,7 @@ func anthropicMessageToDomain(msg AnthropicMessage) []domain.Message {
 			})
 			hasCurrent = true
 		case "tool_result":
-			// Tool results become standalone "tool" role messages.
+			// 工具结果变为独立的 "tool" 角色消息。
 			flush()
 			toolUseID, _ := block["tool_use_id"].(string)
 			result = append(result, domain.Message{
@@ -319,7 +316,7 @@ func anthropicMessageToDomain(msg AnthropicMessage) []domain.Message {
 	return result
 }
 
-// normalizeToolResultContent flattens tool_result content (string or blocks).
+// normalizeToolResultContent 展平 tool_result 内容（字符串或块数组）。
 func normalizeToolResultContent(content interface{}) string {
 	switch v := content.(type) {
 	case string:
@@ -339,7 +336,7 @@ func normalizeToolResultContent(content interface{}) string {
 	}
 }
 
-// DomainToAnthropicResponse converts a domain ChatResponse to an Anthropic response.
+// DomainToAnthropicResponse 将领域 ChatResponse 转换为 Anthropic 响应。
 func DomainToAnthropicResponse(model string, resp *domain.ChatResponse) AnthropicResponse {
 	var content []interface{}
 	if resp.Thinking != "" {
@@ -384,7 +381,7 @@ func DomainToAnthropicResponse(model string, resp *domain.ChatResponse) Anthropi
 	}
 }
 
-// EstimateAnthropicTokens roughly counts input tokens for count_tokens requests.
+// EstimateAnthropicTokens 粗略统计 count_tokens 请求的输入 token 数。
 func EstimateAnthropicTokens(apiReq AnthropicRequest) int {
 	total := EstimateTokens(NormalizeContent(apiReq.System))
 	for _, msg := range apiReq.Messages {
@@ -404,7 +401,7 @@ func EstimateAnthropicTokens(apiReq AnthropicRequest) int {
 	return total
 }
 
-// MapStopReason converts Ollama-style stop reasons to Anthropic-style stop reasons.
+// MapStopReason 将 Ollama 风格的停止原因转换为 Anthropic 风格的停止原因。
 func MapStopReason(reason string) string {
 	switch reason {
 	case "length", "max_tokens":

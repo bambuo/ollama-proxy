@@ -12,8 +12,7 @@ import (
 
 const maxRequestBodySize = 10 * 1024 * 1024 // 10 MB
 
-// StatusForError maps use-case errors to an HTTP status: validation
-// failures are the client's fault, everything else is a server error.
+// StatusForError 将用例错误映射为 HTTP 状态码：验证失败是客户端的过错，其余都是服务端错误。
 func StatusForError(err error) int {
 	var ve domain.ValidationError
 	if errors.As(err, &ve) {
@@ -22,7 +21,7 @@ func StatusForError(err error) int {
 	return http.StatusInternalServerError
 }
 
-// WriteSSE marshals data as JSON and writes it as a Server-Sent Event.
+// WriteSSE 将数据编码为 JSON 并作为服务器推送事件写入响应。
 func WriteSSE(w http.ResponseWriter, flusher http.Flusher, data interface{}) {
 	encoded, err := json.Marshal(data)
 	if err != nil {
@@ -32,7 +31,7 @@ func WriteSSE(w http.ResponseWriter, flusher http.Flusher, data interface{}) {
 	flusher.Flush()
 }
 
-// WriteAnthropicSSE writes an SSE event with a named event type and JSON data.
+// WriteAnthropicSSE 写入带有命名事件类型和 JSON 数据的 SSE 事件。
 func WriteAnthropicSSE(w http.ResponseWriter, flusher http.Flusher, event string, data interface{}) {
 	encoded, err := json.Marshal(data)
 	if err != nil {
@@ -42,7 +41,7 @@ func WriteAnthropicSSE(w http.ResponseWriter, flusher http.Flusher, event string
 	flusher.Flush()
 }
 
-// WriteError sends a structured OpenAI-format error response.
+// WriteError 发送结构化的 OpenAI 格式错误响应。
 func WriteError(w http.ResponseWriter, status int, msg string) {
 	errType := "server_error"
 	switch {
@@ -70,7 +69,7 @@ func WriteError(w http.ResponseWriter, status int, msg string) {
 	w.Write(errBody)
 }
 
-// WriteAnthropicError sends an Anthropic-format error response.
+// WriteAnthropicError 发送 Anthropic 格式的错误响应。
 func WriteAnthropicError(w http.ResponseWriter, status int, msg string) {
 	errType := "server_error"
 	switch {

@@ -10,17 +10,17 @@ import (
 	"ollama-proxy/internal/domain"
 )
 
-// AnthropicHandler handles Anthropic Messages API requests.
+// AnthropicHandler 处理 Anthropic Messages API 请求。
 type AnthropicHandler struct {
 	uc application.ChatUseCase
 }
 
-// NewAnthropicHandler creates a new AnthropicHandler.
+// NewAnthropicHandler 创建一个新的 AnthropicHandler。
 func NewAnthropicHandler(uc application.ChatUseCase) *AnthropicHandler {
 	return &AnthropicHandler{uc: uc}
 }
 
-// Handle processes Anthropic /v1/messages requests.
+// Handle 处理 Anthropic /v1/messages 请求。
 func (h *AnthropicHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	anthropicReq, ok := h.parseRequest(w, r)
 	if !ok {
@@ -46,7 +46,7 @@ func (h *AnthropicHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleCountTokens processes Anthropic /v1/messages/count_tokens requests.
+// HandleCountTokens 处理 Anthropic /v1/messages/count_tokens 请求。
 func (h *AnthropicHandler) HandleCountTokens(w http.ResponseWriter, r *http.Request) {
 	anthropicReq, ok := h.parseRequest(w, r)
 	if !ok {
@@ -101,7 +101,7 @@ func (h *AnthropicHandler) handleNonStream(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, domainReq *domain.ChatRequest) {
-	// SSE headers
+	// SSE 响应头
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -115,9 +115,8 @@ func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, 
 
 	msgID := "msg_" + converter.FormatHex()
 
-	// message_start (followed by a ping, matching the real API's stream
-	// shape) is deferred until the backend produces its first chunk, so
-	// that pre-stream failures can still be reported as an HTTP error.
+	// message_start（后跟一个 ping，匹配真实 API 的流形状）会延迟到后端产生第一个块后才发送，
+	// 这样流开始前的失败仍然可以作为 HTTP 错误报告。
 	started := false
 	ensureStarted := func() {
 		if started {
@@ -140,11 +139,10 @@ func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, 
 		WriteAnthropicSSE(w, flusher, "ping", converter.AnthropicPing{Type: "ping"})
 	}
 
-	// Content blocks are opened lazily: a thinking block on the first
-	// thinking delta, a text block on the first text delta, and one
-	// tool_use block per tool call.
+	// 内容块是惰性打开的：第一个思考增量时打开 thinking 块，第一个文本增量时打开 text 块，
+	// 每个工具调用打开一个 tool_use 块。
 	blockIndex := 0
-	openBlock := "" // "", "thinking" or "text"
+	openBlock := "" // "", "thinking" 或 "text"
 	sawToolCalls := false
 
 	closeBlock := func() {
@@ -260,8 +258,7 @@ func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, 
 	})
 
 	if err != nil {
-		// Nothing was streamed yet, so a proper error response can still
-		// be written (e.g. capability validation failures).
+		// 尚未流式输出任何内容，因此仍可以写入适当的错误响应（例如能力验证失败）。
 		if !started {
 			WriteAnthropicError(w, StatusForError(err), err.Error())
 		}

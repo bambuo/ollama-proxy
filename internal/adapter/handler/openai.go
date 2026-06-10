@@ -11,17 +11,17 @@ import (
 	"ollama-proxy/internal/domain"
 )
 
-// OpenAIHandler handles OpenAI-compatible chat completion requests.
+// OpenAIHandler 处理 OpenAI 兼容的聊天补全请求。
 type OpenAIHandler struct {
 	uc application.ChatUseCase
 }
 
-// NewOpenAIHandler creates a new OpenAIHandler.
+// NewOpenAIHandler 创建一个新的 OpenAIHandler。
 func NewOpenAIHandler(uc application.ChatUseCase) *OpenAIHandler {
 	return &OpenAIHandler{uc: uc}
 }
 
-// Handle processes OpenAI /v1/chat/completions requests.
+// Handle 处理 OpenAI /v1/chat/completions 请求。
 func (h *OpenAIHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
@@ -60,7 +60,7 @@ func (h *OpenAIHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleModels processes GET /v1/models requests.
+// HandleModels 处理 GET /v1/models 请求。
 func (h *OpenAIHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
@@ -78,7 +78,7 @@ func (h *OpenAIHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(converter.DomainToOpenAIModelList(models))
 }
 
-// HandleModel processes GET /v1/models/{id} requests.
+// HandleModel 处理 GET /v1/models/{id} 请求。
 func (h *OpenAIHandler) HandleModel(w http.ResponseWriter, r *http.Request, modelID string) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
@@ -107,7 +107,7 @@ func (h *OpenAIHandler) HandleModel(w http.ResponseWriter, r *http.Request, mode
 	WriteError(w, http.StatusNotFound, fmt.Sprintf("model %q not found", modelID))
 }
 
-// HandleEmbeddings processes POST /v1/embeddings requests.
+// HandleEmbeddings 处理 POST /v1/embeddings 请求。
 func (h *OpenAIHandler) HandleEmbeddings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
@@ -178,7 +178,7 @@ func (h *OpenAIHandler) handleNonStream(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *OpenAIHandler) handleStream(w http.ResponseWriter, r *http.Request, domainReq *domain.ChatRequest, openaiReq *converter.OpenAIChatRequest) {
-	// SSE headers
+	// SSE 响应头
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -199,7 +199,7 @@ func (h *OpenAIHandler) handleStream(w http.ResponseWriter, r *http.Request, dom
 	wroteAny := false
 
 	err := h.uc.ChatStream(r.Context(), domainReq, func(chunk *domain.StreamChunk) error {
-		// Check client disconnect
+		// 检查客户端是否断开连接
 		select {
 		case <-r.Context().Done():
 			return r.Context().Err()
@@ -228,13 +228,11 @@ func (h *OpenAIHandler) handleStream(w http.ResponseWriter, r *http.Request, dom
 	})
 
 	if err != nil {
-		// Nothing was streamed yet, so a proper error response can still
-		// be written (e.g. capability validation failures).
+		// 尚未流式输出任何内容，因此仍可以写入适当的错误响应（例如能力验证失败）。
 		if !wroteAny {
 			WriteError(w, StatusForError(err), err.Error())
 		}
-		// Otherwise partial data is already out; the error is likely a
-		// client disconnect, which is expected.
+		// 否则部分数据已发出；错误很可能是客户端断开连接，这是预期行为。
 		return
 	}
 }

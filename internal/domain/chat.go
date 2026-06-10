@@ -2,39 +2,38 @@ package domain
 
 import "encoding/json"
 
-// ValidationError marks a request the target model cannot serve (e.g.
-// images sent to a non-vision model). Handlers map it to HTTP 400.
+// ValidationError 标记目标模型无法服务的请求（例如向非视觉模型发送图片）。
+// 处理器将其映射为 HTTP 400。
 type ValidationError string
 
 func (e ValidationError) Error() string { return string(e) }
 
-// ToolCall represents a tool/function invocation requested by the model.
+// ToolCall 表示模型请求的工具/函数调用。
 type ToolCall struct {
 	ID        string
 	Name      string
-	Arguments string // JSON-encoded arguments object
+	Arguments string // JSON 编码的参数对象
 }
 
-// Tool describes a function the model is allowed to call.
+// Tool 描述模型允许调用的函数。
 type Tool struct {
 	Name        string
 	Description string
-	Parameters  json.RawMessage // JSON schema of the arguments
+	Parameters  json.RawMessage // 参数的 JSON Schema
 }
 
-// Message represents a single message in a chat conversation,
-// protocol-agnostic with pre-normalized string content.
+// Message 表示聊天对话中的单条消息，协议无关且内容已预归一化为字符串。
 type Message struct {
 	Role       string
 	Content    string
-	Thinking   string     // reasoning content on assistant messages
-	Images     []string   // base64-encoded images, no data-URL prefix
-	ToolCalls  []ToolCall // set on assistant messages that requested tools
-	ToolCallID string     // set on tool-result messages (role "tool")
-	ToolName   string     // optional tool name on tool-result messages
+	Thinking   string     // 助手消息上的推理内容
+	Images     []string   // base64 编码的图片，不含 data-URL 前缀
+	ToolCalls  []ToolCall // 在请求工具的助手消息上设置
+	ToolCallID string     // 在工具结果消息上设置（role "tool"）
+	ToolName   string     // 工具结果消息上的可选工具名称
 }
 
-// ChatRequest represents a protocol-agnostic chat completion request.
+// ChatRequest 表示协议无关的聊天补全请求。
 type ChatRequest struct {
 	Model            string
 	Messages         []Message
@@ -48,12 +47,11 @@ type ChatRequest struct {
 	PresencePenalty  *float64
 	FrequencyPenalty *float64
 	Tools            []Tool
-	Think            *bool           // enable/disable reasoning on thinking models
-	Format           json.RawMessage // `"json"` or a JSON schema for structured output
+	Think            *bool           // 在推理模型上启用/禁用推理
+	Format           json.RawMessage // `"json"` 或用于结构化输出的 JSON Schema
 }
 
-// GenerateRequest represents a raw text completion request (no chat template
-// beyond the model's own prompt template).
+// GenerateRequest 表示原始文本补全请求（除了模型自身的提示模板外没有聊天模板）。
 type GenerateRequest struct {
 	Model            string
 	Prompt           string
@@ -70,13 +68,12 @@ type GenerateRequest struct {
 }
 
 const (
-	charsPerToken  = 4   // rough average for estimation
-	tokensPerImage = 768 // ballpark vision token cost per image
+	charsPerToken  = 4   // 估算的粗略平均值
+	tokensPerImage = 768 // 每张图片的大致视觉 token 消耗
 )
 
-// EstimateInputTokens roughly estimates the prompt token count of the
-// request (~4 chars per token, flat cost per image). Used for sizing the
-// backend context window; intentionally errs on the simple side.
+// EstimateInputTokens 粗略估算请求的提示 token 数量（约 4 字符/token，每张图片固定成本）。
+// 用于调整后端上下文窗口大小；有意偏向简单的估算。
 func (r *ChatRequest) EstimateInputTokens() int {
 	chars := 0
 	images := 0
@@ -93,12 +90,12 @@ func (r *ChatRequest) EstimateInputTokens() int {
 	return chars/charsPerToken + images*tokensPerImage
 }
 
-// EstimateInputTokens roughly estimates the prompt token count.
+// EstimateInputTokens 粗略估算提示 token 数量。
 func (r *GenerateRequest) EstimateInputTokens() int {
 	return (len(r.Prompt) + len(r.Suffix)) / charsPerToken
 }
 
-// ChatResponse represents a protocol-agnostic non-streaming response.
+// ChatResponse 表示协议无关的非流式响应。
 type ChatResponse struct {
 	Content      string
 	Thinking     string
@@ -109,8 +106,8 @@ type ChatResponse struct {
 	Model        string
 }
 
-// StreamChunk represents a single chunk in a streaming response.
-// Content carries the incremental text delta of this chunk.
+// StreamChunk 表示流式响应中的单个块。
+// Content 携带此块的增量文本。
 type StreamChunk struct {
 	Content      string
 	Thinking     string
@@ -121,14 +118,14 @@ type StreamChunk struct {
 	OutputTokens int
 }
 
-// ModelInfo describes a model available on the backend.
+// ModelInfo 描述后端可用的模型。
 type ModelInfo struct {
 	Name       string
 	ModifiedAt string
 	Size       int64
 }
 
-// EmbeddingResult holds embeddings for a batch of inputs.
+// EmbeddingResult 保存一批输入的嵌入向量。
 type EmbeddingResult struct {
 	Embeddings  [][]float64
 	InputTokens int

@@ -35,7 +35,7 @@ func main() {
 		Handler: mux,
 	}
 
-	// Channel to listen for OS signals
+	// 用于监听操作系统信号的通道
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -48,7 +48,7 @@ func main() {
 		}
 	}()
 
-	// Block until a signal is received
+	// 阻塞直到收到信号
 	sig := <-quit
 	fmt.Printf("\n🛑 Received signal %v, shutting down gracefully...\n", sig)
 

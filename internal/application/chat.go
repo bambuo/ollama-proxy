@@ -7,7 +7,7 @@ import (
 	"ollama-proxy/internal/domain"
 )
 
-// ChatUseCase is the input port that adapter handlers call.
+// ChatUseCase 是适配器处理器调用的输入端口。
 type ChatUseCase interface {
 	Chat(ctx context.Context, req *domain.ChatRequest) (*domain.ChatResponse, error)
 	ChatStream(ctx context.Context, req *domain.ChatRequest, onChunk func(*domain.StreamChunk) error) error
@@ -17,7 +17,7 @@ type ChatUseCase interface {
 	Embed(ctx context.Context, model string, input []string) (*domain.EmbeddingResult, error)
 }
 
-// OllamaClient is the output port that infrastructure implements.
+// OllamaClient 是基础设施实现的输出端口。
 type OllamaClient interface {
 	Chat(ctx context.Context, req *domain.ChatRequest) (*domain.ChatResponse, error)
 	ChatStream(ctx context.Context, req *domain.ChatRequest) (<-chan domain.StreamChunk, error)
@@ -25,9 +25,8 @@ type OllamaClient interface {
 	GenerateStream(ctx context.Context, req *domain.GenerateRequest) (<-chan domain.StreamChunk, error)
 	ListModels(ctx context.Context) ([]domain.ModelInfo, error)
 	Embed(ctx context.Context, model string, input []string) (*domain.EmbeddingResult, error)
-	// ModelCapabilities reports what the model supports ("completion",
-	// "vision", "tools", "thinking", "embedding", "insert", ...).
-	// Returns nil when unknown, in which case validation is skipped.
+	// ModelCapabilities 报告模型支持的能力（"completion"、"vision"、"tools"、"thinking"、"embedding"、"insert" 等）。
+	// 未知时返回 nil，此时跳过验证。
 	ModelCapabilities(ctx context.Context, model string) []string
 }
 
@@ -35,14 +34,13 @@ type chatUseCase struct {
 	ollama OllamaClient
 }
 
-// NewChatUseCase creates a new ChatUseCase with the given Ollama client.
+// NewChatUseCase 使用给定的 Ollama 客户端创建一个新的 ChatUseCase。
 func NewChatUseCase(ollama OllamaClient) ChatUseCase {
 	return &chatUseCase{ollama: ollama}
 }
 
-// validateChat rejects requests the target model cannot serve, so clients
-// get a clear 400 instead of an opaque backend failure. Fails open when
-// capabilities are unknown (e.g. model not pulled yet).
+// validateChat 拒绝目标模型无法服务的请求，以便客户端获得清晰的 400 错误而非模糊的后端失败。
+// 当能力未知时（例如模型尚未拉取），放行通过。
 func (uc *chatUseCase) validateChat(ctx context.Context, req *domain.ChatRequest) error {
 	caps := capabilitySet(uc.ollama.ModelCapabilities(ctx, req.Model))
 	if caps == nil {

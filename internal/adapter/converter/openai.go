@@ -8,7 +8,7 @@ import (
 	"ollama-proxy/internal/domain"
 )
 
-// ========== OpenAI Request DTO ==========
+// ========== OpenAI 请求 DTO ==========
 
 type OpenAIToolCallFunction struct {
 	Name      string `json:"name,omitempty"`
@@ -16,7 +16,7 @@ type OpenAIToolCallFunction struct {
 }
 
 type OpenAIToolCall struct {
-	Index    *int                   `json:"index,omitempty"` // present in streaming deltas
+	Index    *int                   `json:"index,omitempty"` // 在流式增量中存在
 	ID       string                 `json:"id,omitempty"`
 	Type     string                 `json:"type,omitempty"`
 	Function OpenAIToolCallFunction `json:"function"`
@@ -24,7 +24,7 @@ type OpenAIToolCall struct {
 
 type OpenAIMessage struct {
 	Role             string           `json:"role"`
-	Content          interface{}      `json:"content"` // string or []ContentPart
+	Content          interface{}      `json:"content"` // 字符串或 []ContentPart
 	ReasoningContent string           `json:"reasoning_content,omitempty"`
 	Name             string           `json:"name,omitempty"`
 	ToolCalls        []OpenAIToolCall `json:"tool_calls,omitempty"`
@@ -66,16 +66,16 @@ type OpenAIChatRequest struct {
 	TopP                *float64              `json:"top_p,omitempty"`
 	MaxTokens           *int                  `json:"max_tokens,omitempty"`
 	MaxCompletionTokens *int                  `json:"max_completion_tokens,omitempty"`
-	Stop                interface{}           `json:"stop,omitempty"` // string or []string
+	Stop                interface{}           `json:"stop,omitempty"` // 字符串或 []string
 	Seed                *int                  `json:"seed,omitempty"`
 	PresencePenalty     *float64              `json:"presence_penalty,omitempty"`
 	FrequencyPenalty    *float64              `json:"frequency_penalty,omitempty"`
 	Tools               []OpenAITool          `json:"tools,omitempty"`
-	ToolChoice          interface{}           `json:"tool_choice,omitempty"` // "none"/"auto"/"required" or object
+	ToolChoice          interface{}           `json:"tool_choice,omitempty"` // "none"/"auto"/"required" 或对象
 	ResponseFormat      *OpenAIResponseFormat `json:"response_format,omitempty"`
 }
 
-// ========== OpenAI Response DTO ==========
+// ========== OpenAI 响应 DTO ==========
 
 type OpenAIStreamDelta struct {
 	Role             string           `json:"role,omitempty"`
@@ -140,7 +140,7 @@ type OpenAIErrorResponse struct {
 	Error OpenAIError `json:"error"`
 }
 
-// ========== OpenAI Models DTO ==========
+// ========== OpenAI 模型 DTO ==========
 
 type OpenAIModel struct {
 	ID      string `json:"id"`
@@ -154,11 +154,11 @@ type OpenAIModelList struct {
 	Data   []OpenAIModel `json:"data"`
 }
 
-// ========== OpenAI Legacy Completions DTO ==========
+// ========== OpenAI 旧版补全 DTO ==========
 
 type OpenAICompletionRequest struct {
 	Model            string               `json:"model"`
-	Prompt           interface{}          `json:"prompt"` // string or []string
+	Prompt           interface{}          `json:"prompt"` // 字符串或 []string
 	Suffix           string               `json:"suffix,omitempty"`
 	MaxTokens        *int                 `json:"max_tokens,omitempty"`
 	Temperature      *float64             `json:"temperature,omitempty"`
@@ -187,11 +187,11 @@ type OpenAICompletionResponse struct {
 	Usage   *OpenAIUsage             `json:"usage,omitempty"`
 }
 
-// ========== OpenAI Embeddings DTO ==========
+// ========== OpenAI 嵌入向量 DTO ==========
 
 type OpenAIEmbeddingRequest struct {
 	Model string      `json:"model"`
-	Input interface{} `json:"input"` // string or []string
+	Input interface{} `json:"input"` // 字符串或 []string
 }
 
 type OpenAIEmbeddingData struct {
@@ -209,9 +209,9 @@ type OpenAIEmbeddingResponse struct {
 
 const systemFingerprint = "fp_ollama"
 
-// ========== Conversion Functions ==========
+// ========== 转换函数 ==========
 
-// OpenAIRequestToDomain converts an OpenAI request to a domain ChatRequest.
+// OpenAIRequestToDomain 将 OpenAI 请求转换为领域 ChatRequest。
 func OpenAIRequestToDomain(apiReq OpenAIChatRequest) domain.ChatRequest {
 	messages := make([]domain.Message, len(apiReq.Messages))
 	for i, msg := range apiReq.Messages {
@@ -253,8 +253,8 @@ func OpenAIRequestToDomain(apiReq OpenAIChatRequest) domain.ChatRequest {
 		Format:           ResponseFormatToOllama(apiReq.ResponseFormat),
 	}
 
-	// tool_choice "none" disables tools; Ollama cannot force a specific
-	// tool, so other choices pass tools through as-is.
+	// tool_choice "none" 禁用工具；Ollama 无法强制使用特定工具，
+	// 因此其他选择按原样传递工具。
 	if choice, ok := apiReq.ToolChoice.(string); ok && choice == "none" {
 		return req
 	}
@@ -268,7 +268,7 @@ func OpenAIRequestToDomain(apiReq OpenAIChatRequest) domain.ChatRequest {
 	return req
 }
 
-// DomainToOpenAIResponse converts a domain ChatResponse to an OpenAI response.
+// DomainToOpenAIResponse 将领域 ChatResponse 转换为 OpenAI 响应。
 func DomainToOpenAIResponse(model string, resp *domain.ChatResponse) OpenAIResponse {
 	msg := OpenAIRespMessage{
 		Role:             "assistant",
@@ -297,9 +297,9 @@ func DomainToOpenAIResponse(model string, resp *domain.ChatResponse) OpenAIRespo
 	}
 }
 
-// BuildOpenAIStreamChunk constructs an OpenAI SSE chunk from a domain
-// StreamChunk. toolCallIndex tracks tool-call indices across the stream.
-// Returns false when the chunk carries nothing to send.
+// BuildOpenAIStreamChunk 从领域 StreamChunk 构建 OpenAI SSE 块。
+// toolCallIndex 跟踪整个流中的工具调用索引。
+// 当块不包含任何可发送内容时返回 false。
 func BuildOpenAIStreamChunk(id string, created int64, model string, chunk domain.StreamChunk, toolCallIndex *int, sawToolCalls bool) (OpenAIChunk, bool) {
 	base := OpenAIChunk{
 		ID:                id,
@@ -348,7 +348,7 @@ func BuildOpenAIStreamChunk(id string, created int64, model string, chunk domain
 	return base, true
 }
 
-// BuildOpenAIUsageChunk creates a usage-only SSE chunk.
+// BuildOpenAIUsageChunk 创建仅包含用量信息的 SSE 块。
 func BuildOpenAIUsageChunk(id string, created int64, model string, inputTokens, outputTokens int) OpenAIChunk {
 	return OpenAIChunk{
 		ID:                id,
@@ -361,7 +361,7 @@ func BuildOpenAIUsageChunk(id string, created int64, model string, inputTokens, 
 	}
 }
 
-// DomainToOpenAIModelList converts model info to the OpenAI models format.
+// DomainToOpenAIModelList 将模型信息转换为 OpenAI 模型列表格式。
 func DomainToOpenAIModelList(models []domain.ModelInfo) OpenAIModelList {
 	data := make([]OpenAIModel, len(models))
 	for i, m := range models {
@@ -375,7 +375,7 @@ func DomainToOpenAIModelList(models []domain.ModelInfo) OpenAIModelList {
 	return OpenAIModelList{Object: "list", Data: data}
 }
 
-// DomainToOpenAIEmbeddings converts an embedding result to OpenAI format.
+// DomainToOpenAIEmbeddings 将嵌入向量结果转换为 OpenAI 格式。
 func DomainToOpenAIEmbeddings(model string, result *domain.EmbeddingResult) OpenAIEmbeddingResponse {
 	data := make([]OpenAIEmbeddingData, len(result.Embeddings))
 	for i, emb := range result.Embeddings {
@@ -396,8 +396,8 @@ func DomainToOpenAIEmbeddings(model string, result *domain.EmbeddingResult) Open
 	}
 }
 
-// ResponseFormatToOllama maps an OpenAI response_format to the Ollama format
-// parameter: "json" for json_object, the raw schema for json_schema.
+// ResponseFormatToOllama 将 OpenAI response_format 映射为 Ollama format 参数：
+// "json" 对应 json_object，原始 schema 对应 json_schema。
 func ResponseFormatToOllama(rf *OpenAIResponseFormat) json.RawMessage {
 	if rf == nil {
 		return nil
@@ -415,8 +415,8 @@ func ResponseFormatToOllama(rf *OpenAIResponseFormat) json.RawMessage {
 	}
 }
 
-// CompletionRequestToDomain converts a legacy completions request to a domain
-// GenerateRequest. Returns ok=false when prompt is not a single string.
+// CompletionRequestToDomain 将旧版补全请求转换为领域 GenerateRequest。
+// 当 prompt 不是单个字符串时返回 ok=false。
 func CompletionRequestToDomain(apiReq OpenAICompletionRequest) (domain.GenerateRequest, bool) {
 	prompt := ""
 	switch v := apiReq.Prompt.(type) {
@@ -450,8 +450,7 @@ func CompletionRequestToDomain(apiReq OpenAICompletionRequest) (domain.GenerateR
 	}, true
 }
 
-// DomainToOpenAICompletion converts a domain ChatResponse to a legacy
-// completions response.
+// DomainToOpenAICompletion 将领域 ChatResponse 转换为旧版补全响应。
 func DomainToOpenAICompletion(model string, resp *domain.ChatResponse) OpenAICompletionResponse {
 	finishReason := MapOpenAIFinishReason(resp.FinishReason, false)
 	return OpenAICompletionResponse{
@@ -466,8 +465,8 @@ func DomainToOpenAICompletion(model string, resp *domain.ChatResponse) OpenAICom
 	}
 }
 
-// BuildOpenAICompletionChunk constructs a legacy completions SSE chunk.
-// Returns false when the chunk carries nothing to send.
+// BuildOpenAICompletionChunk 构建旧版补全 SSE 块。
+// 当块不包含任何可发送内容时返回 false。
 func BuildOpenAICompletionChunk(id string, created int64, model string, chunk domain.StreamChunk) (OpenAICompletionResponse, bool) {
 	base := OpenAICompletionResponse{
 		ID:      id,
@@ -497,7 +496,7 @@ func BuildOpenAICompletionChunk(id string, created int64, model string, chunk do
 	return base, true
 }
 
-// MapOpenAIFinishReason maps an Ollama done_reason to an OpenAI finish_reason.
+// MapOpenAIFinishReason 将 Ollama done_reason 映射为 OpenAI finish_reason。
 func MapOpenAIFinishReason(reason string, hasToolCalls bool) string {
 	if hasToolCalls {
 		return "tool_calls"
@@ -510,7 +509,7 @@ func MapOpenAIFinishReason(reason string, hasToolCalls bool) string {
 	}
 }
 
-// ========== Helpers ==========
+// ========== 辅助函数 ==========
 
 func toOpenAIToolCalls(calls []domain.ToolCall, streaming bool) []OpenAIToolCall {
 	if len(calls) == 0 {
@@ -541,8 +540,8 @@ func newOpenAIUsage(prompt, completion int) *OpenAIUsage {
 	}
 }
 
-// NormalizeOpenAIContent converts OpenAI content (string or array of parts)
-// to plain text plus any base64 images found in image_url parts.
+// NormalizeOpenAIContent 将 OpenAI 内容（字符串或部分数组）
+// 转换为纯文本以及从 image_url 部分提取的 base64 图片。
 func NormalizeOpenAIContent(content interface{}) (string, []string) {
 	switch v := content.(type) {
 	case string:
@@ -566,8 +565,7 @@ func NormalizeOpenAIContent(content interface{}) (string, []string) {
 						if img := ExtractBase64Image(url); img != "" {
 							images = append(images, img)
 						} else if IsRemoteURL(url) {
-							// Kept as a URL; the handler downloads it
-							// before the request reaches Ollama.
+							// 保留为 URL；处理器会在请求到达 Ollama 之前下载它。
 							images = append(images, url)
 						}
 					}
@@ -582,7 +580,7 @@ func NormalizeOpenAIContent(content interface{}) (string, []string) {
 	}
 }
 
-// NormalizeContent converts content (string or array of parts) to a plain string.
+// NormalizeContent 将内容（字符串或部分数组）转换为纯字符串。
 func NormalizeContent(content interface{}) string {
 	text, _ := NormalizeOpenAIContent(content)
 	return text

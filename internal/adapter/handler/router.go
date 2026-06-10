@@ -8,13 +8,13 @@ import (
 	"ollama-proxy/internal/application"
 )
 
-// Server is the top-level HTTP handler that routes requests to the appropriate handler.
+// Server 是顶层 HTTP 处理器，将请求路由到相应的处理器。
 type Server struct {
 	openai    *OpenAIHandler
 	anthropic *AnthropicHandler
 }
 
-// New creates a new Server with dependency injection.
+// New 通过依赖注入创建一个新的 Server。
 func New(chatUC application.ChatUseCase) *Server {
 	return &Server{
 		openai:    NewOpenAIHandler(chatUC),
@@ -22,7 +22,7 @@ func New(chatUC application.ChatUseCase) *Server {
 	}
 }
 
-// ServeHTTP implements http.Handler.
+// ServeHTTP 实现了 http.Handler 接口。
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 

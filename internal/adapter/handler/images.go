@@ -16,9 +16,8 @@ const maxImageSize = 20 * 1024 * 1024 // 20 MB
 
 var imageHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-// resolveRemoteImages downloads any http(s) image references left in the
-// request by the converters and replaces them with base64 payloads, since
-// Ollama only accepts inline base64 images.
+// resolveRemoteImages 下载转换器留在请求中的任何 http(s) 图片引用，
+// 并将其替换为 base64 负载，因为 Ollama 只接受内联 base64 图片。
 func resolveRemoteImages(ctx context.Context, req *domain.ChatRequest) error {
 	for i := range req.Messages {
 		for j, img := range req.Messages[i].Images {

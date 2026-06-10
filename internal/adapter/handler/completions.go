@@ -10,8 +10,8 @@ import (
 	"ollama-proxy/internal/domain"
 )
 
-// HandleCompletions processes legacy OpenAI /v1/completions requests,
-// backed by Ollama's /api/generate.
+// HandleCompletions 处理旧版 OpenAI /v1/completions 请求，
+// 由 Ollama 的 /api/generate 支持。
 func (h *OpenAIHandler) HandleCompletions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
@@ -61,7 +61,7 @@ func (h *OpenAIHandler) handleCompletionNonStream(w http.ResponseWriter, r *http
 }
 
 func (h *OpenAIHandler) handleCompletionStream(w http.ResponseWriter, r *http.Request, domainReq *domain.GenerateRequest, completionReq *converter.OpenAICompletionRequest) {
-	// SSE headers
+	// SSE 响应头
 	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")

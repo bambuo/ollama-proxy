@@ -7,17 +7,17 @@ import (
 	"time"
 )
 
-// IDTimestamp returns a unique timestamp suitable for OpenAI-style IDs.
+// IDTimestamp 返回适用于 OpenAI 风格 ID 的唯一时间戳。
 func IDTimestamp() int64 {
 	return time.Now().UnixNano()
 }
 
-// NowUnix returns the current Unix timestamp.
+// NowUnix 返回当前的 Unix 时间戳。
 func NowUnix() int64 {
 	return time.Now().Unix()
 }
 
-// FormatHex returns a random hex string suitable for Anthropic-style message IDs.
+// FormatHex 返回适用于 Anthropic 风格消息 ID 的随机十六进制字符串。
 func FormatHex() string {
 	b := make([]byte, 12)
 	if _, err := rand.Read(b); err != nil {
@@ -26,7 +26,7 @@ func FormatHex() string {
 	return hex.EncodeToString(b)
 }
 
-// NormalizeStop converts a stop value (string or array of strings) to []string.
+// NormalizeStop 将停止值（字符串或字符串数组）转换为 []string。
 func NormalizeStop(stop interface{}) []string {
 	switch v := stop.(type) {
 	case string:
@@ -47,9 +47,8 @@ func NormalizeStop(stop interface{}) []string {
 	}
 }
 
-// ExtractBase64Image strips a data-URL prefix (e.g. "data:image/png;base64,")
-// from an image URL, returning the raw base64 payload. Returns "" for
-// non-data URLs, which the local Ollama backend cannot fetch.
+// ExtractBase64Image 从图片 URL 中去除 data-URL 前缀（例如 "data:image/png;base64,"），
+// 返回原始 base64 负载。对于非 data URL 返回 ""，因为本地 Ollama 后端无法获取这些 URL。
 func ExtractBase64Image(url string) string {
 	if !strings.HasPrefix(url, "data:") {
 		return ""
@@ -60,12 +59,12 @@ func ExtractBase64Image(url string) string {
 	return ""
 }
 
-// IsRemoteURL reports whether s is an http(s) URL.
+// IsRemoteURL 报告 s 是否为 http(s) URL。
 func IsRemoteURL(s string) bool {
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }
 
-// EstimateTokens gives a rough token count for a text (≈4 chars per token).
+// EstimateTokens 粗略估算文本的 token 数量（约 4 字符/token）。
 func EstimateTokens(text string) int {
 	n := len(text) / 4
 	if n < 1 && len(text) > 0 {
