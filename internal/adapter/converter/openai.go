@@ -46,21 +46,33 @@ type OpenAIStreamOptions struct {
 	IncludeUsage bool `json:"include_usage"`
 }
 
+type OpenAIJSONSchemaSpec struct {
+	Name   string          `json:"name,omitempty"`
+	Schema json.RawMessage `json:"schema,omitempty"`
+	Strict *bool           `json:"strict,omitempty"`
+}
+
+type OpenAIResponseFormat struct {
+	Type       string                `json:"type"` // "text", "json_object", "json_schema"
+	JSONSchema *OpenAIJSONSchemaSpec `json:"json_schema,omitempty"`
+}
+
 type OpenAIChatRequest struct {
-	Model               string               `json:"model"`
-	Messages            []OpenAIMessage      `json:"messages"`
-	Stream              bool                 `json:"stream"`
-	StreamOptions       *OpenAIStreamOptions `json:"stream_options,omitempty"`
-	Temperature         *float64             `json:"temperature,omitempty"`
-	TopP                *float64             `json:"top_p,omitempty"`
-	MaxTokens           *int                 `json:"max_tokens,omitempty"`
-	MaxCompletionTokens *int                 `json:"max_completion_tokens,omitempty"`
-	Stop                interface{}          `json:"stop,omitempty"` // string or []string
-	Seed                *int                 `json:"seed,omitempty"`
-	PresencePenalty     *float64             `json:"presence_penalty,omitempty"`
-	FrequencyPenalty    *float64             `json:"frequency_penalty,omitempty"`
-	Tools               []OpenAITool         `json:"tools,omitempty"`
-	ToolChoice          interface{}          `json:"tool_choice,omitempty"` // "none"/"auto"/"required" or object
+	Model               string                `json:"model"`
+	Messages            []OpenAIMessage       `json:"messages"`
+	Stream              bool                  `json:"stream"`
+	StreamOptions       *OpenAIStreamOptions  `json:"stream_options,omitempty"`
+	Temperature         *float64              `json:"temperature,omitempty"`
+	TopP                *float64              `json:"top_p,omitempty"`
+	MaxTokens           *int                  `json:"max_tokens,omitempty"`
+	MaxCompletionTokens *int                  `json:"max_completion_tokens,omitempty"`
+	Stop                interface{}           `json:"stop,omitempty"` // string or []string
+	Seed                *int                  `json:"seed,omitempty"`
+	PresencePenalty     *float64              `json:"presence_penalty,omitempty"`
+	FrequencyPenalty    *float64              `json:"frequency_penalty,omitempty"`
+	Tools               []OpenAITool          `json:"tools,omitempty"`
+	ToolChoice          interface{}           `json:"tool_choice,omitempty"` // "none"/"auto"/"required" or object
+	ResponseFormat      *OpenAIResponseFormat `json:"response_format,omitempty"`
 }
 
 // ========== OpenAI Response DTO ==========
@@ -142,6 +154,39 @@ type OpenAIModelList struct {
 	Data   []OpenAIModel `json:"data"`
 }
 
+// ========== OpenAI Legacy Completions DTO ==========
+
+type OpenAICompletionRequest struct {
+	Model            string               `json:"model"`
+	Prompt           interface{}          `json:"prompt"` // string or []string
+	Suffix           string               `json:"suffix,omitempty"`
+	MaxTokens        *int                 `json:"max_tokens,omitempty"`
+	Temperature      *float64             `json:"temperature,omitempty"`
+	TopP             *float64             `json:"top_p,omitempty"`
+	Stop             interface{}          `json:"stop,omitempty"`
+	Seed             *int                 `json:"seed,omitempty"`
+	PresencePenalty  *float64             `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float64             `json:"frequency_penalty,omitempty"`
+	Stream           bool                 `json:"stream"`
+	StreamOptions    *OpenAIStreamOptions `json:"stream_options,omitempty"`
+}
+
+type OpenAICompletionChoice struct {
+	Text         string      `json:"text"`
+	Index        int         `json:"index"`
+	Logprobs     interface{} `json:"logprobs"`
+	FinishReason *string     `json:"finish_reason"`
+}
+
+type OpenAICompletionResponse struct {
+	ID      string                   `json:"id"`
+	Object  string                   `json:"object"`
+	Created int64                    `json:"created"`
+	Model   string                   `json:"model"`
+	Choices []OpenAICompletionChoice `json:"choices"`
+	Usage   *OpenAIUsage             `json:"usage,omitempty"`
+}
+
 // ========== OpenAI Embeddings DTO ==========
 
 type OpenAIEmbeddingRequest struct {
@@ -205,6 +250,7 @@ func OpenAIRequestToDomain(apiReq OpenAIChatRequest) domain.ChatRequest {
 		Seed:             apiReq.Seed,
 		PresencePenalty:  apiReq.PresencePenalty,
 		FrequencyPenalty: apiReq.FrequencyPenalty,
+		Format:           ResponseFormatToOllama(apiReq.ResponseFormat),
 	}
 
 	// tool_choice "none" disables tools; Ollama cannot force a specific
@@ -350,6 +396,107 @@ func DomainToOpenAIEmbeddings(model string, result *domain.EmbeddingResult) Open
 	}
 }
 
+// ResponseFormatToOllama maps an OpenAI response_format to the Ollama format
+// parameter: "json" for json_object, the raw schema for json_schema.
+func ResponseFormatToOllama(rf *OpenAIResponseFormat) json.RawMessage {
+	if rf == nil {
+		return nil
+	}
+	switch rf.Type {
+	case "json_object":
+		return json.RawMessage(`"json"`)
+	case "json_schema":
+		if rf.JSONSchema != nil && len(rf.JSONSchema.Schema) > 0 {
+			return rf.JSONSchema.Schema
+		}
+		return json.RawMessage(`"json"`)
+	default:
+		return nil
+	}
+}
+
+// CompletionRequestToDomain converts a legacy completions request to a domain
+// GenerateRequest. Returns ok=false when prompt is not a single string.
+func CompletionRequestToDomain(apiReq OpenAICompletionRequest) (domain.GenerateRequest, bool) {
+	prompt := ""
+	switch v := apiReq.Prompt.(type) {
+	case string:
+		prompt = v
+	case []interface{}:
+		if len(v) != 1 {
+			return domain.GenerateRequest{}, false
+		}
+		s, ok := v[0].(string)
+		if !ok {
+			return domain.GenerateRequest{}, false
+		}
+		prompt = s
+	default:
+		return domain.GenerateRequest{}, false
+	}
+
+	return domain.GenerateRequest{
+		Model:            apiReq.Model,
+		Prompt:           prompt,
+		Suffix:           apiReq.Suffix,
+		Stream:           apiReq.Stream,
+		Temperature:      apiReq.Temperature,
+		TopP:             apiReq.TopP,
+		MaxTokens:        apiReq.MaxTokens,
+		Stop:             NormalizeStop(apiReq.Stop),
+		Seed:             apiReq.Seed,
+		PresencePenalty:  apiReq.PresencePenalty,
+		FrequencyPenalty: apiReq.FrequencyPenalty,
+	}, true
+}
+
+// DomainToOpenAICompletion converts a domain ChatResponse to a legacy
+// completions response.
+func DomainToOpenAICompletion(model string, resp *domain.ChatResponse) OpenAICompletionResponse {
+	finishReason := MapOpenAIFinishReason(resp.FinishReason, false)
+	return OpenAICompletionResponse{
+		ID:      fmt.Sprintf("cmpl-%d", IDTimestamp()),
+		Object:  "text_completion",
+		Created: NowUnix(),
+		Model:   model,
+		Choices: []OpenAICompletionChoice{
+			{Text: resp.Content, Index: 0, FinishReason: &finishReason},
+		},
+		Usage: newOpenAIUsage(resp.InputTokens, resp.OutputTokens),
+	}
+}
+
+// BuildOpenAICompletionChunk constructs a legacy completions SSE chunk.
+// Returns false when the chunk carries nothing to send.
+func BuildOpenAICompletionChunk(id string, created int64, model string, chunk domain.StreamChunk) (OpenAICompletionResponse, bool) {
+	base := OpenAICompletionResponse{
+		ID:      id,
+		Object:  "text_completion",
+		Created: created,
+		Model:   model,
+	}
+
+	if chunk.Done {
+		finishReason := "stop"
+		if chunk.FinishReason != nil {
+			finishReason = *chunk.FinishReason
+		}
+		finishReason = MapOpenAIFinishReason(finishReason, false)
+		base.Choices = []OpenAICompletionChoice{
+			{Text: "", Index: 0, FinishReason: &finishReason},
+		}
+		return base, true
+	}
+
+	if chunk.Content == "" {
+		return OpenAICompletionResponse{}, false
+	}
+	base.Choices = []OpenAICompletionChoice{
+		{Text: chunk.Content, Index: 0, FinishReason: nil},
+	}
+	return base, true
+}
+
 // MapOpenAIFinishReason maps an Ollama done_reason to an OpenAI finish_reason.
 func MapOpenAIFinishReason(reason string, hasToolCalls bool) string {
 	if hasToolCalls {
@@ -418,6 +565,10 @@ func NormalizeOpenAIContent(content interface{}) (string, []string) {
 					if url, ok := iu["url"].(string); ok {
 						if img := ExtractBase64Image(url); img != "" {
 							images = append(images, img)
+						} else if IsRemoteURL(url) {
+							// Kept as a URL; the handler downloads it
+							// before the request reaches Ollama.
+							images = append(images, url)
 						}
 					}
 				}

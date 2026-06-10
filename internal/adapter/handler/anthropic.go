@@ -34,6 +34,11 @@ func (h *AnthropicHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	domainReq := converter.AnthropicRequestToDomain(*anthropicReq)
 
+	if err := resolveRemoteImages(r.Context(), &domainReq); err != nil {
+		WriteAnthropicError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	if domainReq.Stream {
 		h.handleStream(w, r, &domainReq)
 	} else {

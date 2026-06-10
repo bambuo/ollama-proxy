@@ -60,6 +60,11 @@ func ExtractBase64Image(url string) string {
 	return ""
 }
 
+// IsRemoteURL reports whether s is an http(s) URL.
+func IsRemoteURL(s string) bool {
+	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+}
+
 // EstimateTokens gives a rough token count for a text (≈4 chars per token).
 func EstimateTokens(text string) int {
 	n := len(text) / 4

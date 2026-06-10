@@ -10,6 +10,8 @@ import (
 type ChatUseCase interface {
 	Chat(ctx context.Context, req *domain.ChatRequest) (*domain.ChatResponse, error)
 	ChatStream(ctx context.Context, req *domain.ChatRequest, onChunk func(*domain.StreamChunk) error) error
+	Generate(ctx context.Context, req *domain.GenerateRequest) (*domain.ChatResponse, error)
+	GenerateStream(ctx context.Context, req *domain.GenerateRequest, onChunk func(*domain.StreamChunk) error) error
 	ListModels(ctx context.Context) ([]domain.ModelInfo, error)
 	Embed(ctx context.Context, model string, input []string) (*domain.EmbeddingResult, error)
 }
@@ -18,6 +20,8 @@ type ChatUseCase interface {
 type OllamaClient interface {
 	Chat(ctx context.Context, req *domain.ChatRequest) (*domain.ChatResponse, error)
 	ChatStream(ctx context.Context, req *domain.ChatRequest) (<-chan domain.StreamChunk, error)
+	Generate(ctx context.Context, req *domain.GenerateRequest) (*domain.ChatResponse, error)
+	GenerateStream(ctx context.Context, req *domain.GenerateRequest) (<-chan domain.StreamChunk, error)
 	ListModels(ctx context.Context) ([]domain.ModelInfo, error)
 	Embed(ctx context.Context, model string, input []string) (*domain.EmbeddingResult, error)
 }
@@ -37,6 +41,26 @@ func (uc *chatUseCase) Chat(ctx context.Context, req *domain.ChatRequest) (*doma
 
 func (uc *chatUseCase) ChatStream(ctx context.Context, req *domain.ChatRequest, onChunk func(*domain.StreamChunk) error) error {
 	chunkChan, err := uc.ollama.ChatStream(ctx, req)
+	if err != nil {
+		return err
+	}
+	for chunk := range chunkChan {
+		if err := onChunk(&chunk); err != nil {
+			return err
+		}
+		if chunk.Done {
+			break
+		}
+	}
+	return nil
+}
+
+func (uc *chatUseCase) Generate(ctx context.Context, req *domain.GenerateRequest) (*domain.ChatResponse, error) {
+	return uc.ollama.Generate(ctx, req)
+}
+
+func (uc *chatUseCase) GenerateStream(ctx context.Context, req *domain.GenerateRequest, onChunk func(*domain.StreamChunk) error) error {
+	chunkChan, err := uc.ollama.GenerateStream(ctx, req)
 	if err != nil {
 		return err
 	}

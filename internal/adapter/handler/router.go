@@ -30,6 +30,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/v1/chat/completions", "/chat/completions":
 		s.openai.Handle(w, r)
 		return
+	case "/v1/completions", "/completions":
+		s.openai.HandleCompletions(w, r)
+		return
 	case "/v1/models", "/models":
 		s.openai.HandleModels(w, r)
 		return

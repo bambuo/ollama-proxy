@@ -48,6 +48,11 @@ func (h *OpenAIHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	domainReq := converter.OpenAIRequestToDomain(openaiReq)
 
+	if err := resolveRemoteImages(r.Context(), &domainReq); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	if domainReq.Stream {
 		h.handleStream(w, r, &domainReq, &openaiReq)
 	} else {

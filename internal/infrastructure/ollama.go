@@ -66,6 +66,17 @@ type ollamaRequest struct {
 	Stream    bool            `json:"stream"`
 	Tools     []ollamaTool    `json:"tools,omitempty"`
 	Think     *bool           `json:"think,omitempty"`
+	Format    json.RawMessage `json:"format,omitempty"`
+	KeepAlive string          `json:"keep_alive,omitempty"`
+	Options   *ollamaOptions  `json:"options,omitempty"`
+}
+
+type ollamaGenerateRequest struct {
+	Model     string          `json:"model"`
+	Prompt    string          `json:"prompt"`
+	Suffix    string          `json:"suffix,omitempty"`
+	Stream    bool            `json:"stream"`
+	Format    json.RawMessage `json:"format,omitempty"`
 	KeepAlive string          `json:"keep_alive,omitempty"`
 	Options   *ollamaOptions  `json:"options,omitempty"`
 }
@@ -74,6 +85,8 @@ type ollamaResponse struct {
 	Model           string         `json:"model"`
 	CreatedAt       string         `json:"created_at"`
 	Message         *ollamaMessage `json:"message,omitempty"`
+	Response        string         `json:"response,omitempty"` // /api/generate
+	Thinking        string         `json:"thinking,omitempty"` // /api/generate
 	DoneReason      string         `json:"done_reason"`
 	Done            bool           `json:"done"`
 	EvalCount       int            `json:"eval_count"`
@@ -155,13 +168,51 @@ func (c *ollamaClient) Chat(ctx context.Context, req *domain.ChatRequest) (*doma
 }
 
 func (c *ollamaClient) ChatStream(ctx context.Context, req *domain.ChatRequest) (<-chan domain.StreamChunk, error) {
-	body, err := json.Marshal(c.buildRequest(req, true))
+	return c.stream(ctx, "/api/chat", c.buildRequest(req, true))
+}
+
+// Generate performs a raw completion via /api/generate.
+func (c *ollamaClient) Generate(ctx context.Context, req *domain.GenerateRequest) (*domain.ChatResponse, error) {
+	respBody, err := c.post(ctx, "/api/generate", c.buildGenerateRequest(req, false))
+	if err != nil {
+		return nil, err
+	}
+
+	var ollamaResp ollamaResponse
+	if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	finishReason := ollamaResp.DoneReason
+	if finishReason == "" {
+		finishReason = "stop"
+	}
+
+	return &domain.ChatResponse{
+		Content:      ollamaResp.Response,
+		Thinking:     ollamaResp.Thinking,
+		FinishReason: finishReason,
+		InputTokens:  ollamaResp.PromptEvalCount,
+		OutputTokens: ollamaResp.EvalCount,
+		Model:        ollamaResp.Model,
+	}, nil
+}
+
+// GenerateStream performs a streaming raw completion via /api/generate.
+func (c *ollamaClient) GenerateStream(ctx context.Context, req *domain.GenerateRequest) (<-chan domain.StreamChunk, error) {
+	return c.stream(ctx, "/api/generate", c.buildGenerateRequest(req, true))
+}
+
+// stream posts an NDJSON streaming request and converts each line into a
+// domain StreamChunk. Works for both /api/chat and /api/generate.
+func (c *ollamaClient) stream(ctx context.Context, path string, payload interface{}) (<-chan domain.StreamChunk, error) {
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal ollama request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/api/chat", bytes.NewBuffer(body))
+		c.baseURL+path, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("create stream request: %w", err)
 	}
@@ -213,6 +264,8 @@ func (c *ollamaClient) ChatStream(ctx context.Context, req *domain.ChatRequest) 
 				chunk.FinishReason = &reason
 			}
 
+			chunk.Content = ollamaResp.Response
+			chunk.Thinking = ollamaResp.Thinking
 			if ollamaResp.Message != nil {
 				chunk.Content = ollamaResp.Message.Content
 				chunk.Thinking = ollamaResp.Message.Thinking
@@ -341,6 +394,7 @@ func (c *ollamaClient) buildRequest(req *domain.ChatRequest, stream bool) ollama
 		Messages:  messages,
 		Stream:    stream,
 		Think:     req.Think,
+		Format:    req.Format,
 		KeepAlive: "5m",
 	}
 
@@ -370,6 +424,32 @@ func (c *ollamaClient) buildRequest(req *domain.ChatRequest, stream bool) ollama
 	}
 
 	return ollamaReq
+}
+
+func (c *ollamaClient) buildGenerateRequest(req *domain.GenerateRequest, stream bool) ollamaGenerateRequest {
+	genReq := ollamaGenerateRequest{
+		Model:     req.Model,
+		Prompt:    req.Prompt,
+		Suffix:    req.Suffix,
+		Stream:    stream,
+		Format:    req.Format,
+		KeepAlive: "5m",
+	}
+
+	if req.Temperature != nil || req.TopP != nil || req.MaxTokens != nil ||
+		len(req.Stop) > 0 || req.Seed != nil || req.PresencePenalty != nil || req.FrequencyPenalty != nil {
+		genReq.Options = &ollamaOptions{
+			Temperature:      req.Temperature,
+			TopP:             req.TopP,
+			NumPredict:       req.MaxTokens,
+			Stop:             req.Stop,
+			Seed:             req.Seed,
+			PresencePenalty:  req.PresencePenalty,
+			FrequencyPenalty: req.FrequencyPenalty,
+		}
+	}
+
+	return genReq
 }
 
 // toDomainToolCalls converts Ollama tool calls to domain tool calls,

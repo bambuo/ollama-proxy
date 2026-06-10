@@ -273,9 +273,19 @@ func anthropicMessageToDomain(msg AnthropicMessage) []domain.Message {
 			}
 		case "image":
 			if src, ok := block["source"].(map[string]interface{}); ok {
-				if data, ok := src["data"].(string); ok && data != "" {
-					current.Images = append(current.Images, data)
-					hasCurrent = true
+				switch src["type"] {
+				case "url":
+					// Kept as a URL; the handler downloads it before
+					// the request reaches Ollama.
+					if url, ok := src["url"].(string); ok && IsRemoteURL(url) {
+						current.Images = append(current.Images, url)
+						hasCurrent = true
+					}
+				default: // "base64"
+					if data, ok := src["data"].(string); ok && data != "" {
+						current.Images = append(current.Images, data)
+						hasCurrent = true
+					}
 				}
 			}
 		case "tool_use":
