@@ -52,5 +52,5 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteError(w, http.StatusNotFound, fmt.Sprintf("path not found: %s", path))
+	WriteError(w, http.StatusNotFound, fmt.Sprintf("未找到路径：%s", path))
 }

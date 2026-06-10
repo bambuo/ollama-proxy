@@ -25,7 +25,7 @@ func NewOpenAIHandler(uc application.ChatUseCase) *OpenAIHandler {
 func (h *OpenAIHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
-		WriteError(w, http.StatusMethodNotAllowed, "Only POST method is allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "仅允许 POST 方法")
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *OpenAIHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if openaiReq.Model == "" {
-		WriteError(w, http.StatusBadRequest, "model is required")
+		WriteError(w, http.StatusBadRequest, "必须指定模型")
 		return
 	}
 
@@ -64,7 +64,7 @@ func (h *OpenAIHandler) Handle(w http.ResponseWriter, r *http.Request) {
 func (h *OpenAIHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
-		WriteError(w, http.StatusMethodNotAllowed, "Only GET method is allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "仅允许 GET 方法")
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *OpenAIHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 func (h *OpenAIHandler) HandleModel(w http.ResponseWriter, r *http.Request, modelID string) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", "GET")
-		WriteError(w, http.StatusMethodNotAllowed, "Only GET method is allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "仅允许 GET 方法")
 		return
 	}
 
@@ -104,14 +104,14 @@ func (h *OpenAIHandler) HandleModel(w http.ResponseWriter, r *http.Request, mode
 			return
 		}
 	}
-	WriteError(w, http.StatusNotFound, fmt.Sprintf("model %q not found", modelID))
+	WriteError(w, http.StatusNotFound, fmt.Sprintf("未找到模型 %q", modelID))
 }
 
 // HandleEmbeddings 处理 POST /v1/embeddings 请求。
 func (h *OpenAIHandler) HandleEmbeddings(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
-		WriteError(w, http.StatusMethodNotAllowed, "Only POST method is allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "仅允许 POST 方法")
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *OpenAIHandler) HandleEmbeddings(w http.ResponseWriter, r *http.Request)
 	}
 
 	if embReq.Model == "" {
-		WriteError(w, http.StatusBadRequest, "model is required")
+		WriteError(w, http.StatusBadRequest, "必须指定模型")
 		return
 	}
 
@@ -140,17 +140,17 @@ func (h *OpenAIHandler) HandleEmbeddings(w http.ResponseWriter, r *http.Request)
 		for _, item := range v {
 			s, ok := item.(string)
 			if !ok {
-				WriteError(w, http.StatusBadRequest, "input must be a string or an array of strings")
+				WriteError(w, http.StatusBadRequest, "input 必须是字符串或字符串数组")
 				return
 			}
 			input = append(input, s)
 		}
 	default:
-		WriteError(w, http.StatusBadRequest, "input must be a string or an array of strings")
+		WriteError(w, http.StatusBadRequest, "input 必须是字符串或字符串数组")
 		return
 	}
 	if len(input) == 0 {
-		WriteError(w, http.StatusBadRequest, "input is required")
+		WriteError(w, http.StatusBadRequest, "input 不能为空")
 		return
 	}
 
@@ -186,7 +186,7 @@ func (h *OpenAIHandler) handleStream(w http.ResponseWriter, r *http.Request, dom
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		WriteError(w, http.StatusInternalServerError, "streaming not supported")
+		WriteError(w, http.StatusInternalServerError, "不支持流式传输")
 		return
 	}
 

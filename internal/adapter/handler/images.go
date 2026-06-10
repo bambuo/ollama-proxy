@@ -26,7 +26,7 @@ func resolveRemoteImages(ctx context.Context, req *domain.ChatRequest) error {
 			}
 			encoded, err := fetchImageBase64(ctx, img)
 			if err != nil {
-				return fmt.Errorf("fetch image %s: %w", img, err)
+				return fmt.Errorf("获取图片 %s：%w", img, err)
 			}
 			req.Messages[i].Images[j] = encoded
 		}
@@ -47,7 +47,7 @@ func fetchImageBase64(ctx context.Context, url string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status %d", resp.StatusCode)
+		return "", fmt.Errorf("状态码 %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxImageSize+1))
@@ -55,7 +55,7 @@ func fetchImageBase64(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 	if len(data) > maxImageSize {
-		return "", fmt.Errorf("image exceeds %d bytes", maxImageSize)
+		return "", fmt.Errorf("图片超过 %d 字节限制", maxImageSize)
 	}
 
 	return base64.StdEncoding.EncodeToString(data), nil

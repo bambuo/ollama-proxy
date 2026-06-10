@@ -40,25 +40,25 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		fmt.Printf("✅ Ollama Proxy running at http://127.0.0.1%s\n", addr)
-		fmt.Println("   Listening for requests...")
+		fmt.Printf("✅ Ollama 代理运行在 http://127.0.0.1%s\n", addr)
+		fmt.Println("   正在监听请求...")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(os.Stderr, "❌ Server error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "❌ 服务器错误：%v\n", err)
 			os.Exit(1)
 		}
 	}()
 
 	// 阻塞直到收到信号
 	sig := <-quit
-	fmt.Printf("\n🛑 Received signal %v, shutting down gracefully...\n", sig)
+	fmt.Printf("\n🛑 收到信号 %v，正在优雅关闭...\n", sig)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "❌ Server forced to shutdown: %v\n", err)
+		fmt.Fprintf(os.Stderr, "❌ 服务器强制关闭：%v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("✅ Server stopped")
+	fmt.Println("✅ 服务器已停止")
 }

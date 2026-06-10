@@ -50,15 +50,15 @@ func (uc *chatUseCase) validateChat(ctx context.Context, req *domain.ChatRequest
 	if !caps["vision"] {
 		for _, m := range req.Messages {
 			if len(m.Images) > 0 {
-				return domain.ValidationError(fmt.Sprintf("model %q does not support image input", req.Model))
+				return domain.ValidationError(fmt.Sprintf("模型 %q 不支持图片输入", req.Model))
 			}
 		}
 	}
 	if !caps["tools"] && len(req.Tools) > 0 {
-		return domain.ValidationError(fmt.Sprintf("model %q does not support tools", req.Model))
+		return domain.ValidationError(fmt.Sprintf("模型 %q 不支持工具", req.Model))
 	}
 	if !caps["thinking"] && req.Think != nil && *req.Think {
-		return domain.ValidationError(fmt.Sprintf("model %q does not support thinking", req.Model))
+		return domain.ValidationError(fmt.Sprintf("模型 %q 不支持推理", req.Model))
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func (uc *chatUseCase) validateGenerate(ctx context.Context, req *domain.Generat
 		return nil
 	}
 	if !caps["insert"] && req.Suffix != "" {
-		return domain.ValidationError(fmt.Sprintf("model %q does not support suffix (fill-in-the-middle)", req.Model))
+		return domain.ValidationError(fmt.Sprintf("模型 %q 不支持后缀（中间填充）", req.Model))
 	}
 	return nil
 }
@@ -143,7 +143,7 @@ func (uc *chatUseCase) ListModels(ctx context.Context) ([]domain.ModelInfo, erro
 
 func (uc *chatUseCase) Embed(ctx context.Context, model string, input []string) (*domain.EmbeddingResult, error) {
 	if caps := capabilitySet(uc.ollama.ModelCapabilities(ctx, model)); caps != nil && !caps["embedding"] {
-		return nil, domain.ValidationError(fmt.Sprintf("model %q does not support embeddings", model))
+		return nil, domain.ValidationError(fmt.Sprintf("模型 %q 不支持嵌入向量", model))
 	}
 	return uc.ollama.Embed(ctx, model, input)
 }

@@ -15,7 +15,7 @@ import (
 func (h *OpenAIHandler) HandleCompletions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
-		WriteError(w, http.StatusMethodNotAllowed, "Only POST method is allowed")
+		WriteError(w, http.StatusMethodNotAllowed, "仅允许 POST 方法")
 		return
 	}
 
@@ -32,13 +32,13 @@ func (h *OpenAIHandler) HandleCompletions(w http.ResponseWriter, r *http.Request
 	}
 
 	if completionReq.Model == "" {
-		WriteError(w, http.StatusBadRequest, "model is required")
+		WriteError(w, http.StatusBadRequest, "必须指定模型")
 		return
 	}
 
 	domainReq, ok := converter.CompletionRequestToDomain(completionReq)
 	if !ok {
-		WriteError(w, http.StatusBadRequest, "prompt must be a string (multiple prompts are not supported)")
+		WriteError(w, http.StatusBadRequest, "prompt 必须是字符串（不支持多个 prompt）")
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *OpenAIHandler) handleCompletionStream(w http.ResponseWriter, r *http.Re
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		WriteError(w, http.StatusInternalServerError, "streaming not supported")
+		WriteError(w, http.StatusInternalServerError, "不支持流式传输")
 		return
 	}
 

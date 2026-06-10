@@ -28,7 +28,7 @@ func (h *AnthropicHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if anthropicReq.MaxTokens <= 0 {
-		WriteAnthropicError(w, http.StatusBadRequest, "max_tokens is required")
+		WriteAnthropicError(w, http.StatusBadRequest, "必须指定 max_tokens")
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *AnthropicHandler) HandleCountTokens(w http.ResponseWriter, r *http.Requ
 func (h *AnthropicHandler) parseRequest(w http.ResponseWriter, r *http.Request) (*converter.AnthropicRequest, bool) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
-		WriteAnthropicError(w, http.StatusMethodNotAllowed, "Only POST method is allowed")
+		WriteAnthropicError(w, http.StatusMethodNotAllowed, "仅允许 POST 方法")
 		return nil, false
 	}
 
@@ -79,7 +79,7 @@ func (h *AnthropicHandler) parseRequest(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if anthropicReq.Model == "" {
-		WriteAnthropicError(w, http.StatusBadRequest, "model is required")
+		WriteAnthropicError(w, http.StatusBadRequest, "必须指定模型")
 		return nil, false
 	}
 
@@ -109,7 +109,7 @@ func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, 
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		WriteAnthropicError(w, http.StatusInternalServerError, "streaming not supported")
+		WriteAnthropicError(w, http.StatusInternalServerError, "不支持流式传输")
 		return
 	}
 

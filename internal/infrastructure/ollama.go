@@ -242,7 +242,7 @@ func (c *ollamaClient) Chat(ctx context.Context, req *domain.ChatRequest) (*doma
 
 	var ollamaResp ollamaResponse
 	if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+		return nil, fmt.Errorf("解析响应：%w", err)
 	}
 
 	content := ""
@@ -283,7 +283,7 @@ func (c *ollamaClient) Generate(ctx context.Context, req *domain.GenerateRequest
 
 	var ollamaResp ollamaResponse
 	if err := json.Unmarshal(respBody, &ollamaResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+		return nil, fmt.Errorf("解析响应：%w", err)
 	}
 
 	finishReason := ollamaResp.DoneReason
@@ -311,25 +311,25 @@ func (c *ollamaClient) GenerateStream(ctx context.Context, req *domain.GenerateR
 func (c *ollamaClient) stream(ctx context.Context, path string, payload interface{}) (<-chan domain.StreamChunk, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("marshal ollama request: %w", err)
+		return nil, fmt.Errorf("序列化 Ollama 请求：%w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.baseURL+path, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, fmt.Errorf("create stream request: %w", err)
+		return nil, fmt.Errorf("创建流式请求：%w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("ollama stream request: %w", err)
+		return nil, fmt.Errorf("Ollama 流式请求：%w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		return nil, fmt.Errorf("ollama stream status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("Ollama 流式状态 %d：%s", resp.StatusCode, string(bodyBytes))
 	}
 
 	chunkChan := make(chan domain.StreamChunk, 10)
@@ -389,23 +389,23 @@ func (c *ollamaClient) stream(ctx context.Context, path string, payload interfac
 func (c *ollamaClient) ListModels(ctx context.Context) ([]domain.ModelInfo, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/tags", nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("创建请求：%w", err)
 	}
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("ollama request: %w", err)
+		return nil, fmt.Errorf("Ollama 请求：%w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("Ollama 状态 %d：%s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var tags ollamaTagsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+		return nil, fmt.Errorf("解析响应：%w", err)
 	}
 
 	models := make([]domain.ModelInfo, len(tags.Models))
@@ -427,7 +427,7 @@ func (c *ollamaClient) Embed(ctx context.Context, model string, input []string) 
 
 	var embedResp ollamaEmbedResponse
 	if err := json.Unmarshal(respBody, &embedResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+		return nil, fmt.Errorf("解析响应：%w", err)
 	}
 
 	return &domain.EmbeddingResult{
@@ -440,30 +440,30 @@ func (c *ollamaClient) Embed(ctx context.Context, model string, input []string) 
 func (c *ollamaClient) post(ctx context.Context, path string, payload interface{}) ([]byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("marshal ollama request: %w", err)
+		return nil, fmt.Errorf("序列化 Ollama 请求：%w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.baseURL+path, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("创建请求：%w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("ollama request: %w", err)
+		return nil, fmt.Errorf("Ollama 请求：%w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("ollama status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("Ollama 状态 %d：%s", resp.StatusCode, string(bodyBytes))
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("读取响应：%w", err)
 	}
 	return respBody, nil
 }
