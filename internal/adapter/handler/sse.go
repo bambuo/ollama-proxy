@@ -2,13 +2,25 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"ollama-proxy/internal/adapter/converter"
+	"ollama-proxy/internal/domain"
 )
 
 const maxRequestBodySize = 10 * 1024 * 1024 // 10 MB
+
+// StatusForError maps use-case errors to an HTTP status: validation
+// failures are the client's fault, everything else is a server error.
+func StatusForError(err error) int {
+	var ve domain.ValidationError
+	if errors.As(err, &ve) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
 
 // WriteSSE marshals data as JSON and writes it as a Server-Sent Event.
 func WriteSSE(w http.ResponseWriter, flusher http.Flusher, data interface{}) {

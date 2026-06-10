@@ -156,7 +156,7 @@ func (h *OpenAIHandler) HandleEmbeddings(w http.ResponseWriter, r *http.Request)
 
 	result, err := h.uc.Embed(r.Context(), embReq.Model, input)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		WriteError(w, StatusForError(err), err.Error())
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *OpenAIHandler) HandleEmbeddings(w http.ResponseWriter, r *http.Request)
 func (h *OpenAIHandler) handleNonStream(w http.ResponseWriter, r *http.Request, domainReq *domain.ChatRequest) {
 	resp, err := h.uc.Chat(r.Context(), domainReq)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		WriteError(w, StatusForError(err), err.Error())
 		return
 	}
 
@@ -196,6 +196,7 @@ func (h *OpenAIHandler) handleStream(w http.ResponseWriter, r *http.Request, dom
 
 	toolCallIndex := 0
 	sawToolCalls := false
+	wroteAny := false
 
 	err := h.uc.ChatStream(r.Context(), domainReq, func(chunk *domain.StreamChunk) error {
 		// Check client disconnect
@@ -204,6 +205,7 @@ func (h *OpenAIHandler) handleStream(w http.ResponseWriter, r *http.Request, dom
 			return r.Context().Err()
 		default:
 		}
+		wroteAny = true
 
 		if len(chunk.ToolCalls) > 0 {
 			sawToolCalls = true
@@ -226,8 +228,13 @@ func (h *OpenAIHandler) handleStream(w http.ResponseWriter, r *http.Request, dom
 	})
 
 	if err != nil {
-		// If we already sent headers and partial data, we can't write an error response.
-		// The error is likely from client disconnect, which is expected.
+		// Nothing was streamed yet, so a proper error response can still
+		// be written (e.g. capability validation failures).
+		if !wroteAny {
+			WriteError(w, StatusForError(err), err.Error())
+		}
+		// Otherwise partial data is already out; the error is likely a
+		// client disconnect, which is expected.
 		return
 	}
 }

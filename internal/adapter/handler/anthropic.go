@@ -89,7 +89,7 @@ func (h *AnthropicHandler) parseRequest(w http.ResponseWriter, r *http.Request) 
 func (h *AnthropicHandler) handleNonStream(w http.ResponseWriter, r *http.Request, domainReq *domain.ChatRequest) {
 	resp, err := h.uc.Chat(r.Context(), domainReq)
 	if err != nil {
-		WriteAnthropicError(w, http.StatusInternalServerError, err.Error())
+		WriteAnthropicError(w, StatusForError(err), err.Error())
 		return
 	}
 
@@ -115,23 +115,30 @@ func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, 
 
 	msgID := "msg_" + converter.FormatHex()
 
-	// 1. message_start
-	WriteAnthropicSSE(w, flusher, "message_start", converter.AnthropicMessageStart{
-		Type: "message_start",
-		Message: converter.AnthropicStartMsg{
-			ID:           msgID,
-			Type:         "message",
-			Role:         "assistant",
-			Content:      []converter.AnthropicContentBlock{},
-			Model:        domainReq.Model,
-			StopReason:   nil,
-			StopSequence: nil,
-			Usage:        converter.AnthropicUsage{},
-		},
-	})
-
-	// 2. ping (matches the real API's stream shape)
-	WriteAnthropicSSE(w, flusher, "ping", converter.AnthropicPing{Type: "ping"})
+	// message_start (followed by a ping, matching the real API's stream
+	// shape) is deferred until the backend produces its first chunk, so
+	// that pre-stream failures can still be reported as an HTTP error.
+	started := false
+	ensureStarted := func() {
+		if started {
+			return
+		}
+		started = true
+		WriteAnthropicSSE(w, flusher, "message_start", converter.AnthropicMessageStart{
+			Type: "message_start",
+			Message: converter.AnthropicStartMsg{
+				ID:           msgID,
+				Type:         "message",
+				Role:         "assistant",
+				Content:      []converter.AnthropicContentBlock{},
+				Model:        domainReq.Model,
+				StopReason:   nil,
+				StopSequence: nil,
+				Usage:        converter.AnthropicUsage{},
+			},
+		})
+		WriteAnthropicSSE(w, flusher, "ping", converter.AnthropicPing{Type: "ping"})
+	}
 
 	// Content blocks are opened lazily: a thinking block on the first
 	// thinking delta, a text block on the first text delta, and one
@@ -170,6 +177,7 @@ func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, 
 			return r.Context().Err()
 		default:
 		}
+		ensureStarted()
 
 		if chunk.Done {
 			closeBlock()
@@ -252,6 +260,11 @@ func (h *AnthropicHandler) handleStream(w http.ResponseWriter, r *http.Request, 
 	})
 
 	if err != nil {
+		// Nothing was streamed yet, so a proper error response can still
+		// be written (e.g. capability validation failures).
+		if !started {
+			WriteAnthropicError(w, StatusForError(err), err.Error())
+		}
 		return
 	}
 }

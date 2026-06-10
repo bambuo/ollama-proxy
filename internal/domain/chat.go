@@ -2,6 +2,12 @@ package domain
 
 import "encoding/json"
 
+// ValidationError marks a request the target model cannot serve (e.g.
+// images sent to a non-vision model). Handlers map it to HTTP 400.
+type ValidationError string
+
+func (e ValidationError) Error() string { return string(e) }
+
 // ToolCall represents a tool/function invocation requested by the model.
 type ToolCall struct {
 	ID        string
@@ -61,6 +67,35 @@ type GenerateRequest struct {
 	PresencePenalty  *float64
 	FrequencyPenalty *float64
 	Format           json.RawMessage
+}
+
+const (
+	charsPerToken  = 4   // rough average for estimation
+	tokensPerImage = 768 // ballpark vision token cost per image
+)
+
+// EstimateInputTokens roughly estimates the prompt token count of the
+// request (~4 chars per token, flat cost per image). Used for sizing the
+// backend context window; intentionally errs on the simple side.
+func (r *ChatRequest) EstimateInputTokens() int {
+	chars := 0
+	images := 0
+	for _, m := range r.Messages {
+		chars += len(m.Role) + len(m.Content) + len(m.Thinking)
+		for _, tc := range m.ToolCalls {
+			chars += len(tc.Name) + len(tc.Arguments)
+		}
+		images += len(m.Images)
+	}
+	for _, t := range r.Tools {
+		chars += len(t.Name) + len(t.Description) + len(t.Parameters)
+	}
+	return chars/charsPerToken + images*tokensPerImage
+}
+
+// EstimateInputTokens roughly estimates the prompt token count.
+func (r *GenerateRequest) EstimateInputTokens() int {
+	return (len(r.Prompt) + len(r.Suffix)) / charsPerToken
 }
 
 // ChatResponse represents a protocol-agnostic non-streaming response.

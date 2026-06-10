@@ -29,6 +29,33 @@ curl http://127.0.0.1:3000/v1/messages \
 |------|--------|------|
 | `PORT` | `3000` | 代理监听端口 |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama 地址 |
+| `NUM_CTX` | 不设置 | 上下文窗口下限（见下文「上下文窗口」） |
+| `NUM_CTX_MAX` | `32768` | 自适应上下文窗口的上限 |
+
+### 上下文窗口
+
+OpenAI/Anthropic 协议没有传递上下文窗口大小的字段（窗口是云端模型的固有属性，超限会报错）；而 Ollama 的 `num_ctx` 默认很小（4096），**超限时会静默截断 prompt 开头**——长对话里系统提示词会先被截掉，且客户端无从感知。
+
+代理按请求自动计算 `num_ctx`：`估算输入 token + max_tokens（缺省按 2048）+ 余量`，向上取整到 1024 的倍数：
+
+- 计算值 ≤ 4096 且未设 `NUM_CTX` 时不干预，沿用 Ollama / Modelfile 自身配置
+- 超出时自动放大到所需大小（受 `NUM_CTX_MAX` 封顶，防止显存耗尽）
+- 设置了 `NUM_CTX` 则作为每个请求的窗口下限
+- 通过 `/api/show` 查询模型原生 `context_length` 并按模型缓存，计算值不会超过模型自身支持的上限（超过只会浪费显存）
+
+### 能力预校验
+
+代理同时通过 `/api/show` 读取模型的 `capabilities`（按模型缓存），在请求转发前校验，不匹配时返回清晰的 400（而不是 Ollama 的 500/501）：
+
+| 请求内容 | 需要的能力 |
+|----------|-----------|
+| 图片输入 | `vision` |
+| `tools` 工具定义 | `tools` |
+| `thinking: enabled` | `thinking` |
+| `/v1/embeddings` | `embedding` |
+| `/v1/completions` 的 `suffix` | `insert` |
+
+能力信息不可用时（如模型尚未拉取）跳过校验，由 Ollama 自行报错。流式请求的校验失败同样以 HTTP 400 返回（Anthropic 的 `message_start` 事件推迟到后端确认产出后才发送）。
 
 ## 支持的端点
 

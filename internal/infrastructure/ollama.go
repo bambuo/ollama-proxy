@@ -11,6 +11,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
+	"sync"
 
 	"ollama-proxy/internal/application"
 	"ollama-proxy/internal/domain"
@@ -54,6 +57,7 @@ type ollamaOptions struct {
 	TopP             *float64 `json:"top_p,omitempty"`
 	TopK             *int     `json:"top_k,omitempty"`
 	NumPredict       *int     `json:"num_predict,omitempty"`
+	NumCtx           *int     `json:"num_ctx,omitempty"`
 	Stop             []string `json:"stop,omitempty"`
 	Seed             *int     `json:"seed,omitempty"`
 	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
@@ -112,9 +116,35 @@ type ollamaEmbedResponse struct {
 	PromptEvalCount int         `json:"prompt_eval_count"`
 }
 
+// Context window sizing. Ollama defaults num_ctx to a small value and
+// silently truncates the prompt when it overflows, so the proxy sizes the
+// window per request: max(NUM_CTX floor, estimated input + output + margin),
+// capped at NUM_CTX_MAX.
+const (
+	ollamaDefaultNumCtx = 4096  // Ollama's own default; below this we don't interfere
+	defaultNumCtxMax    = 32768 // safety cap to avoid exhausting memory
+	defaultOutputBudget = 2048  // assumed output size when max_tokens is absent
+	numCtxMargin        = 512   // headroom for estimation error
+	numCtxRoundTo       = 1024  // align allocations across similar requests
+)
+
+type ollamaShowResponse struct {
+	ModelInfo    map[string]interface{} `json:"model_info"`
+	Capabilities []string               `json:"capabilities"`
+}
+
+// modelMeta is the cached subset of /api/show needed per request.
+type modelMeta struct {
+	contextLength int
+	capabilities  []string
+}
+
 type ollamaClient struct {
-	baseURL string
-	client  *http.Client
+	baseURL     string
+	client      *http.Client
+	numCtxFloor int
+	numCtxMax   int
+	modelMeta   sync.Map // model name -> modelMeta
 }
 
 // NewOllamaClient creates an OllamaClient that implements application.OllamaClient.
@@ -124,15 +154,92 @@ func NewOllamaClient() application.OllamaClient {
 		url = DefaultOllamaURL
 	}
 	return &ollamaClient{
-		baseURL: url,
-		client: &http.Client{
-			Timeout: 0, // rely on context
-		},
+		baseURL:     url,
+		client:      &http.Client{Timeout: 0}, // rely on context
+		numCtxFloor: envInt("NUM_CTX", 0),
+		numCtxMax:   envInt("NUM_CTX_MAX", defaultNumCtxMax),
 	}
 }
 
+func envInt(name string, fallback int) int {
+	if v := os.Getenv(name); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return fallback
+}
+
+// computeNumCtx returns the context window to request, or nil to leave
+// Ollama's (or the Modelfile's) own default untouched. modelMax is the
+// model's native context length (0 if unknown) and caps the result —
+// requesting beyond it only wastes memory.
+func (c *ollamaClient) computeNumCtx(estimatedInput int, maxTokens *int, modelMax int) *int {
+	output := defaultOutputBudget
+	if maxTokens != nil && *maxTokens > 0 {
+		output = *maxTokens
+	}
+
+	need := estimatedInput + output + numCtxMargin
+	need = (need + numCtxRoundTo - 1) / numCtxRoundTo * numCtxRoundTo
+
+	if need < c.numCtxFloor {
+		need = c.numCtxFloor
+	}
+	if need > c.numCtxMax {
+		need = c.numCtxMax
+	}
+	if modelMax > 0 && need > modelMax {
+		need = modelMax
+	}
+
+	// Without an explicit floor, only step in when the request would not
+	// fit Ollama's default window; shrinking it helps nobody.
+	if c.numCtxFloor == 0 && need <= ollamaDefaultNumCtx {
+		return nil
+	}
+	return &need
+}
+
+// showModel fetches model metadata via /api/show, cached per model.
+// Returns a zero modelMeta when it cannot be determined (e.g. the model
+// is not pulled yet); failures are not cached so a later pull is seen.
+func (c *ollamaClient) showModel(ctx context.Context, model string) modelMeta {
+	if cached, ok := c.modelMeta.Load(model); ok {
+		return cached.(modelMeta)
+	}
+
+	respBody, err := c.post(ctx, "/api/show", map[string]string{"model": model})
+	if err != nil {
+		return modelMeta{}
+	}
+
+	var show ollamaShowResponse
+	if err := json.Unmarshal(respBody, &show); err != nil {
+		return modelMeta{}
+	}
+
+	meta := modelMeta{capabilities: show.Capabilities}
+	for key, value := range show.ModelInfo {
+		if strings.HasSuffix(key, ".context_length") {
+			if f, ok := value.(float64); ok {
+				meta.contextLength = int(f)
+			}
+			break
+		}
+	}
+
+	c.modelMeta.Store(model, meta)
+	return meta
+}
+
+// ModelCapabilities implements the application port; nil when unknown.
+func (c *ollamaClient) ModelCapabilities(ctx context.Context, model string) []string {
+	return c.showModel(ctx, model).capabilities
+}
+
 func (c *ollamaClient) Chat(ctx context.Context, req *domain.ChatRequest) (*domain.ChatResponse, error) {
-	respBody, err := c.post(ctx, "/api/chat", c.buildRequest(req, false))
+	respBody, err := c.post(ctx, "/api/chat", c.buildRequest(ctx, req, false))
 	if err != nil {
 		return nil, err
 	}
@@ -168,12 +275,12 @@ func (c *ollamaClient) Chat(ctx context.Context, req *domain.ChatRequest) (*doma
 }
 
 func (c *ollamaClient) ChatStream(ctx context.Context, req *domain.ChatRequest) (<-chan domain.StreamChunk, error) {
-	return c.stream(ctx, "/api/chat", c.buildRequest(req, true))
+	return c.stream(ctx, "/api/chat", c.buildRequest(ctx, req, true))
 }
 
 // Generate performs a raw completion via /api/generate.
 func (c *ollamaClient) Generate(ctx context.Context, req *domain.GenerateRequest) (*domain.ChatResponse, error) {
-	respBody, err := c.post(ctx, "/api/generate", c.buildGenerateRequest(req, false))
+	respBody, err := c.post(ctx, "/api/generate", c.buildGenerateRequest(ctx, req, false))
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +307,7 @@ func (c *ollamaClient) Generate(ctx context.Context, req *domain.GenerateRequest
 
 // GenerateStream performs a streaming raw completion via /api/generate.
 func (c *ollamaClient) GenerateStream(ctx context.Context, req *domain.GenerateRequest) (<-chan domain.StreamChunk, error) {
-	return c.stream(ctx, "/api/generate", c.buildGenerateRequest(req, true))
+	return c.stream(ctx, "/api/generate", c.buildGenerateRequest(ctx, req, true))
 }
 
 // stream posts an NDJSON streaming request and converts each line into a
@@ -365,7 +472,7 @@ func (c *ollamaClient) post(ctx context.Context, path string, payload interface{
 	return respBody, nil
 }
 
-func (c *ollamaClient) buildRequest(req *domain.ChatRequest, stream bool) ollamaRequest {
+func (c *ollamaClient) buildRequest(ctx context.Context, req *domain.ChatRequest, stream bool) ollamaRequest {
 	messages := make([]ollamaMessage, len(req.Messages))
 	for i, msg := range req.Messages {
 		om := ollamaMessage{
@@ -409,13 +516,15 @@ func (c *ollamaClient) buildRequest(req *domain.ChatRequest, stream bool) ollama
 		})
 	}
 
-	if req.Temperature != nil || req.TopP != nil || req.TopK != nil || req.MaxTokens != nil ||
+	numCtx := c.computeNumCtx(req.EstimateInputTokens(), req.MaxTokens, c.showModel(ctx, req.Model).contextLength)
+	if numCtx != nil || req.Temperature != nil || req.TopP != nil || req.TopK != nil || req.MaxTokens != nil ||
 		len(req.Stop) > 0 || req.Seed != nil || req.PresencePenalty != nil || req.FrequencyPenalty != nil {
 		ollamaReq.Options = &ollamaOptions{
 			Temperature:      req.Temperature,
 			TopP:             req.TopP,
 			TopK:             req.TopK,
 			NumPredict:       req.MaxTokens,
+			NumCtx:           numCtx,
 			Stop:             req.Stop,
 			Seed:             req.Seed,
 			PresencePenalty:  req.PresencePenalty,
@@ -426,7 +535,7 @@ func (c *ollamaClient) buildRequest(req *domain.ChatRequest, stream bool) ollama
 	return ollamaReq
 }
 
-func (c *ollamaClient) buildGenerateRequest(req *domain.GenerateRequest, stream bool) ollamaGenerateRequest {
+func (c *ollamaClient) buildGenerateRequest(ctx context.Context, req *domain.GenerateRequest, stream bool) ollamaGenerateRequest {
 	genReq := ollamaGenerateRequest{
 		Model:     req.Model,
 		Prompt:    req.Prompt,
@@ -436,12 +545,14 @@ func (c *ollamaClient) buildGenerateRequest(req *domain.GenerateRequest, stream 
 		KeepAlive: "5m",
 	}
 
-	if req.Temperature != nil || req.TopP != nil || req.MaxTokens != nil ||
+	numCtx := c.computeNumCtx(req.EstimateInputTokens(), req.MaxTokens, c.showModel(ctx, req.Model).contextLength)
+	if numCtx != nil || req.Temperature != nil || req.TopP != nil || req.MaxTokens != nil ||
 		len(req.Stop) > 0 || req.Seed != nil || req.PresencePenalty != nil || req.FrequencyPenalty != nil {
 		genReq.Options = &ollamaOptions{
 			Temperature:      req.Temperature,
 			TopP:             req.TopP,
 			NumPredict:       req.MaxTokens,
+			NumCtx:           numCtx,
 			Stop:             req.Stop,
 			Seed:             req.Seed,
 			PresencePenalty:  req.PresencePenalty,

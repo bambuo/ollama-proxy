@@ -52,7 +52,7 @@ func (h *OpenAIHandler) HandleCompletions(w http.ResponseWriter, r *http.Request
 func (h *OpenAIHandler) handleCompletionNonStream(w http.ResponseWriter, r *http.Request, domainReq *domain.GenerateRequest) {
 	resp, err := h.uc.Generate(r.Context(), domainReq)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		WriteError(w, StatusForError(err), err.Error())
 		return
 	}
 
@@ -77,12 +77,14 @@ func (h *OpenAIHandler) handleCompletionStream(w http.ResponseWriter, r *http.Re
 	id := fmt.Sprintf("cmpl-%d", converter.IDTimestamp())
 	created := converter.NowUnix()
 
+	wroteAny := false
 	err := h.uc.GenerateStream(r.Context(), domainReq, func(chunk *domain.StreamChunk) error {
 		select {
 		case <-r.Context().Done():
 			return r.Context().Err()
 		default:
 		}
+		wroteAny = true
 
 		completionChunk, send := converter.BuildOpenAICompletionChunk(id, created, domainReq.Model, *chunk)
 		if send {
@@ -112,6 +114,9 @@ func (h *OpenAIHandler) handleCompletionStream(w http.ResponseWriter, r *http.Re
 	})
 
 	if err != nil {
+		if !wroteAny {
+			WriteError(w, StatusForError(err), err.Error())
+		}
 		return
 	}
 }
