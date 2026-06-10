@@ -27,6 +27,7 @@ func WriteSSE(w http.ResponseWriter, flusher http.Flusher, data interface{}) {
 	if err != nil {
 		return
 	}
+	logRawSSE("data", json.RawMessage(encoded))
 	fmt.Fprintf(w, "data: %s\n\n", encoded)
 	flusher.Flush()
 }
@@ -37,6 +38,7 @@ func WriteAnthropicSSE(w http.ResponseWriter, flusher http.Flusher, event string
 	if err != nil {
 		return
 	}
+	logRawSSE(event, json.RawMessage(encoded))
 	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, encoded)
 	flusher.Flush()
 }

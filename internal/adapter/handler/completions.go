@@ -30,6 +30,7 @@ func (h *OpenAIHandler) HandleCompletions(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	logRawRequest(body)
 
 	if completionReq.Model == "" {
 		WriteError(w, http.StatusBadRequest, "必须指定模型")
@@ -56,8 +57,11 @@ func (h *OpenAIHandler) handleCompletionNonStream(w http.ResponseWriter, r *http
 		return
 	}
 
+	completionResp := converter.DomainToOpenAICompletion(domainReq.Model, resp)
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	json.NewEncoder(w).Encode(converter.DomainToOpenAICompletion(domainReq.Model, resp))
+	logRawResponse(completionResp)
+	json.NewEncoder(w).Encode(completionResp)
 }
 
 func (h *OpenAIHandler) handleCompletionStream(w http.ResponseWriter, r *http.Request, domainReq *domain.GenerateRequest, completionReq *converter.OpenAICompletionRequest) {

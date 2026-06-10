@@ -77,6 +77,7 @@ func (h *AnthropicHandler) parseRequest(w http.ResponseWriter, r *http.Request) 
 		WriteAnthropicError(w, http.StatusBadRequest, err.Error())
 		return nil, false
 	}
+	logRawRequest(body)
 
 	if anthropicReq.Model == "" {
 		WriteAnthropicError(w, http.StatusBadRequest, "必须指定模型")
@@ -97,6 +98,7 @@ func (h *AnthropicHandler) handleNonStream(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("x-request-id", anthropicResp.ID)
+	logRawResponse(anthropicResp)
 	json.NewEncoder(w).Encode(anthropicResp)
 }
 

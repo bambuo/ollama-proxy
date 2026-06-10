@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "启动代理调试",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/ollama-proxy",
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "showLog": true
+        },
+        {
+            "name": "启动代理（编译运行）",
+            "type": "go",
+            "request": "launch",
+            "mode": "exec",
+            "program": "${workspaceFolder}/cmd/ollama-proxy",
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}",
+            "buildFlags": "-o ${workspaceFolder}/ollama-proxy",
+            "args": []
+        }
+    ]
+}

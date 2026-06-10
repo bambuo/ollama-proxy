@@ -40,6 +40,7 @@ func (h *OpenAIHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	logRawRequest(body)
 
 	if openaiReq.Model == "" {
 		WriteError(w, http.StatusBadRequest, "必须指定模型")
@@ -126,6 +127,7 @@ func (h *OpenAIHandler) HandleEmbeddings(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	logRawRequest(body)
 
 	if embReq.Model == "" {
 		WriteError(w, http.StatusBadRequest, "必须指定模型")
@@ -174,6 +176,7 @@ func (h *OpenAIHandler) handleNonStream(w http.ResponseWriter, r *http.Request, 
 	openaiResp := converter.DomainToOpenAIResponse(domainReq.Model, resp)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	logRawResponse(openaiResp)
 	json.NewEncoder(w).Encode(openaiResp)
 }
 
